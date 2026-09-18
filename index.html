@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Estoque e Dispensa</title>
+    <!-- Tailwind CSS para estilização moderna -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Biblioteca QuaggaJS para Leitor de Código de Barras via Câmera -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <!-- FontAwesome para Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Cabeçalho -->
+    <header class="bg-indigo-600 text-white shadow-md py-4 px-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <h1 class="text-2xl font-bold flex items-center gap-2"><i class="fa-solid fa-boxes-stacked"></i> Controle de Dispensa e Estoque</h1>
+        <div class="flex gap-2 flex-wrap justify-center">
+            <button onclick="abrirModalProduto()" class="bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg font-semibold shadow transition flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i> Novo Produto
+            </button>
+            <button onclick="abrirModalScanner()" class="bg-sky-500 hover:bg-sky-600 px-4 py-2 rounded-lg font-semibold shadow transition flex items-center gap-2">
+                <i class="fa-solid fa-barcode"></i> Ler Código de Barras
+            </button>
+            <button onclick="gerarRelatorioCompras()" class="bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-lg font-semibold shadow transition flex items-center gap-2">
+                <i class="fa-solid fa-cart-shopping"></i> Lista de Compras
+            </button>
+        </div>
+    </header>
+
+    <!-- Navegação por Categorias -->
+    <nav class="bg-white shadow-sm border-b px-6 flex overflow-x-auto gap-4 py-3">
+        <button onclick="mudarCategoria('Limpeza')" id="btn-Limpeza" class="cat-btn px-4 py-2 rounded-lg font-medium text-indigo-600 bg-indigo-50 transition whitespace-nowrap">Limpeza</button>
+        <button onclick="mudarCategoria('Alimentos')" id="btn-Alimentos" class="cat-btn px-4 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap">Alimentos</button>
+        <button onclick="mudarCategoria('Higiene')" id="btn-Higiene" class="cat-btn px-4 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap">Higiene</button>
+        <button onclick="mudarCategoria('Carnes')" id="btn-Carnes" class="cat-btn px-4 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap">Carnes</button>
+        <button onclick="mudarCategoria('Bebê')" id="btn-Bebê" class="cat-btn px-4 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-100 transition whitespace-nowrap">Bebê</button>
+    </nav>
+
+    <!-- Conteúdo Principal -->
+    <main class="flex-grow p-6 max-w-7xl mx-auto w-full">
+        <div class="bg-white shadow-md rounded-xl overflow-hidden">
+            <div class="p-4 bg-indigo-50 border-b flex justify-between items-center">
+                <h2 id="titulo-categoria" class="text-xl font-bold text-indigo-900">Limpeza</h2>
+                <span id="contador-itens" class="text-sm font-medium text-indigo-700 bg-indigo-100 px-3 py-1 rounded-full">0 itens</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100 text-slate-600 text-sm uppercase tracking-wider border-b">
+                            <th class="p-3 text-center">Foto</th>
+                            <th class="p-3">Produto</th>
+                            <th class="p-3">Forma</th>
+                            <th class="p-3 text-center">Estoque</th>
+                            <th class="p-3 text-center">Est. Min</th>
+                            <th class="p-3 text-center">Comprar</th>
+                            <th class="p-3">Prioridade</th>
+                            <th class="p-3 text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-produtos" class="divide-y divide-slate-200 text-sm">
+                        <!-- Preenchido via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal de Cadastro / Edição de Produto -->
+    <div id="modal-produto" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h3 id="modal-titulo" class="text-xl font-bold mb-4 text-slate-800">Cadastrar Novo Produto</h3>
+            <form id="form-produto" onsubmit="salvarProduto(event)" class="space-y-4">
+                <input type="hidden" id="prod-id">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Categoria</label>
+                    <select id="prod-categoria" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <option value="Limpeza">Limpeza</option>
+                        <option value="Alimentos">Alimentos</option>
+                        <option value="Higiene">Higiene</option>
+                        <option value="Carnes">Carnes</option>
+                        <option value="Bebê">Bebê</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nome do Produto</label>
+                    <input type="text" id="prod-nome" required class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: Sabão líquido Omo">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Forma/Unidade</label>
+                        <input type="text" id="prod-forma" required class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ex: 3 Litros / 1 Un">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Código de Barras</label>
+                        <div class="flex gap-1">
+                            <input type="text" id="prod-barcode" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none text-sm" placeholder="EAN">
+                            <button type="button" onclick="pesquisarNoCosmos()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 rounded-lg transition" title="Pesquisar foto/produto no Bluesoft Cosmos">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Estoque Atual</label>
+                        <input type="number" id="prod-estoque" min="0" required class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none" value="0">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Estoque Mínimo</label>
+                        <input type="number" id="prod-minimo" min="0" required class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none" value="1">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Prioridade</label>
+                    <select id="prod-prioridade" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <option value="Baixa">Baixa</option>
+                        <option value="Média">Média</option>
+                        <option value="Alta">Alta</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Link da Imagem (URL)</label>
+                    <input type="url" id="prod-foto" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://exemplo.com/imagem.jpg">
+                    <p class="text-xs text-slate-500 mt-1">Dica: Use a lupa do Cosmos para ver a foto, copie o endereço dela e cole aqui.</p>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="fecharModalProduto()" class="px-4 py-2 border rounded-lg hover:bg-slate-50 transition">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Leitor de Código de Barras (Câmera) -->
+    <div id="modal-scanner" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 text-center">
+            <h3 class="text-xl font-bold mb-4 text-slate-800">Leitor de Código de Barras</h3>
+            <div id="interactive" class="viewport relative w-full h-64 bg-black rounded-lg overflow-hidden flex items-center justify-center mb-4">
+                <video class="w-full h-full object-cover" autoplay="true" preload="auto" playsinline></video>
+                <canvas class="drawingBuffer absolute inset-0"></canvas>
+            </div>
+            <p id="scanner-status" class="text-sm text-slate-600 mb-4">Aponte a câmera para o código de barras do produto...</p>
+            <button onclick="fecharModalScanner()" class="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition">Fechar Câmera</button>
+        </div>
+    </div>
+
+    <!-- Modal de Relatório de Compras -->
+    <div id="modal-relatorio" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 class="text-xl font-bold text-slate-800"><i class="fa-solid fa-cart-shopping text-amber-500"></i> Relatório de O que Comprar</h3>
+                <button onclick="fecharRelatorioCompras()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div id="conteudo-relatorio" class="overflow-y-auto flex-grow divide-y divide-slate-100 pr-2">
+                <!-- Conteúdo gerado dinamicamente -->
+            </div>
+            <div class="pt-4 border-t mt-4 flex justify-end">
+                <button onclick="fecharRelatorioCompras()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de Lógica -->
+    <script>
+        let produtos = JSON.parse(localStorage.getItem('dispensa_produtos')) || [
+            { id: 1, categoria: 'Limpeza', nome: 'Sabão líquido Omo', forma: '3 Litros', estoque: 0, minimo: 3, prioridade: 'Alta', foto: 'https://images.unsplash.com/photo-1585421514284-efb74c2b69ba?w=100', barcode: '7891035000001' },
+            { id: 6, categoria: 'Alimentos', nome: 'Arroz Tipo 1', forma: '5 Kg', estoque: 1, minimo: 2, prioridade: 'Alta', foto: '', barcode: '7896005000010' },
+            { id: 9, categoria: 'Higiene', nome: 'Papel Higiênico', forma: '16 Pkt', estoque: 1, minimo: 2, prioridade: 'Alta', foto: '', barcode: '7897005000020' },
+            { id: 11, categoria: 'Carnes', nome: 'Frango Peito Filé', forma: '1 Kg', estoque: 0, minimo: 2, prioridade: 'Alta', foto: '', barcode: '7898005000030' },
+            { id: 13, categoria: 'Bebê', nome: 'Fralda Descartável P', forma: '30 Un', estoque: 1, minimo: 2, prioridade: 'Alta', foto: '', barcode: '7899005000040' }
+        ];
+
+        let categoriaAtual = 'Limpeza';
+
+        function salvarLocal() {
+            localStorage.setItem('dispensa_produtos', JSON.stringify(produtos));
+        }
+
+        function mudarCategoria(cat) {
+            categoriaAtual = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.classList.remove('text-indigo-600', 'bg-indigo-50');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+            });
+            const ativo = document.getElementById(`btn-${cat}`);
+            if(ativo) {
+                ativo.classList.remove('text-slate-600', 'hover:bg-slate-100');
+                ativo.classList.add('text-indigo-600', 'bg-indigo-50');
+            }
+            document.getElementById('titulo-categoria').innerText = cat;
+            renderizarTabela();
+        }
+
+        function renderizarTabela() {
+            const tbody = document.getElementById('tabela-produtos');
+            tbody.innerHTML = '';
+            
+            const filtrados = produtos.filter(p => p.categoria === categoriaAtual);
+            document.getElementById('contador-itens').innerText = `${filtrados.length} itens`;
+
+            if(filtrados.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400">Nenhum produto cadastrado nesta categoria.</td></tr>`;
+                return;
+            }
+
+            filtrados.forEach(p => {
+                const qtdComprar = Math.max(0, p.minimo - p.estoque);
+                
+                let badgePrioridade = 'bg-slate-100 text-slate-700';
+                if(p.prioridade === 'Alta') badgePrioridade = 'bg-red-100 text-red-700';
+                if(p.prioridade === 'Média') badgePrioridade = 'bg-amber-100 text-amber-700';
+                if(p.prioridade === 'Baixa') badgePrioridade = 'bg-emerald-100 text-emerald-700';
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition border-b";
+                tr.innerHTML = `
+                    <td class="p-3 text-center">
+                        ${p.foto ? `<img src="${p.foto}" alt="" class="w-10 h-10 object-cover rounded-lg mx-auto shadow-sm" onerror="this.src='https://via.placeholder.com/40?text=Sem+Foto'">` : `<div class="w-10 h-10 bg-slate-200 rounded-lg mx-auto flex items-center justify-center text-slate-400 text-xs"><i class="fa-solid fa-image"></i></div>`}
+                    </td>
+                    <td class="p-3 font-medium text-slate-800">
+                        ${p.nome}
+                        ${p.barcode ? `<div class="text-xs text-slate-400 font-mono"><i class="fa-solid fa-barcode"></i> ${p.barcode}</div>` : ''}
+                    </td>
+                    <td class="p-3 text-slate-600">${p.forma}</td>
+                    <td class="p-3 text-center">
+                        <div class="inline-flex items-center gap-2">
+                            <button onclick="alterarEstoque(${p.id}, -1)" class="w-7 h-7 bg-slate-200 hover:bg-slate-300 rounded-md font-bold transition">-</button>
+                            <span class="w-8 text-center font-semibold">${p.estoque}</span>
+                            <button onclick="alterarEstoque(${p.id}, 1)" class="w-7 h-7 bg-slate-200 hover:bg-slate-300 rounded-md font-bold transition">+</button>
+                        </div>
+                    </td>
+                    <td class="p-3 text-center text-slate-600">${p.minimo}</td>
+                    <td class="p-3 text-center font-bold ${qtdComprar > 0 ? 'text-red-600 bg-red-50 rounded-lg' : 'text-slate-500'}">${qtdComprar}</td>
+                    <td class="p-3"><span class="px-2.5 py-1 rounded-full text-xs font-semibold ${badgePrioridade}">${p.prioridade}</span></td>
+                    <td class="p-3 text-center">
+                        <button onclick="editarProduto(${p.id})" class="text-blue-500 hover:text-blue-700 mr-3" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="excluirProduto(${p.id})" class="text-red-500 hover:text-red-700" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function alterarEstoque(id, delta) {
+            const prod = produtos.find(p => p.id === id);
+            if(prod) {
+                prod.estoque = Math.max(0, prod.estoque + delta);
+                salvarLocal();
+                renderizarTabela();
+            }
+        }
+
+        function abrirModalProduto(id = null) {
+            document.getElementById('modal-produto').classList.remove('hidden');
+            if(id) {
+                document.getElementById('modal-titulo').innerText = "Editar Produto";
+                const p = produtos.find(item => item.id === id);
+                document.getElementById('prod-id').value = p.id;
+                document.getElementById('prod-categoria').value = p.categoria;
+                document.getElementById('prod-nome').value = p.nome;
+                document.getElementById('prod-forma').value = p.forma;
+                document.getElementById('prod-barcode').value = p.barcode || '';
+                document.getElementById('prod-estoque').value = p.estoque;
+                document.getElementById('prod-minimo').value = p.minimo;
+                document.getElementById('prod-prioridade').value = p.prioridade;
+                document.getElementById('prod-foto').value = p.foto || '';
+            } else {
+                document.getElementById('modal-titulo').innerText = "Cadastrar Novo Produto";
+                document.getElementById('form-produto').reset();
+                document.getElementById('prod-id').value = '';
+                document.getElementById('prod-categoria').value = categoriaAtual;
+            }
+        }
+
+        function fecharModalProduto() {
+            document.getElementById('modal-produto').classList.add('hidden');
+        }
+
+        function pesquisarNoCosmos() {
+            const barcode = document.getElementById('prod-barcode').value.trim();
+            if(!barcode) {
+                alert('Digite ou escaneie um código de barras primeiro.');
+                return;
+            }
+            window.open(`https://cosmos.bluesoft.com.br/produtos/${barcode}`, '_blank');
+        }
+
+        function salvarProduto(event) {
+            event.preventDefault();
+            const id = document.getElementById('prod-id').value;
+            const dados = {
+                categoria: document.getElementById('prod-categoria').value,
+                nome: document.getElementById('prod-nome').value,
+                forma: document.getElementById('prod-forma').value,
+                barcode: document.getElementById('prod-barcode').value,
+                estoque: parseInt(document.getElementById('prod-estoque').value),
+                minimo: parseInt(document.getElementById('prod-minimo').value),
+                prioridade: document.getElementById('prod-prioridade').value,
+                foto: document.getElementById('prod-foto').value
+            };
+
+            if(id) {
+                const index = produtos.findIndex(p => p.id == id);
+                produtos[index] = { id: parseInt(id), ...dados };
+            } else {
+                const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
+                produtos.push({ id: novoId, ...dados });
+            }
+
+            salvarLocal();
+            fecharModalProduto();
+            mudarCategoria(dados.categoria);
+        }
+
+        function editarProduto(id) {
+            abrirModalProduto(id);
+        }
+
+        function excluirProduto(id) {
+            if(confirm('Deseja realmente excluir este produto?')) {
+                produtos = produtos.filter(p => p.id !== id);
+                salvarLocal();
+                renderizarTabela();
+            }
+        }
+
+        function gerarRelatorioCompras() {
+            const relatorioContainer = document.getElementById('conteudo-relatorio');
+            relatorioContainer.innerHTML = '';
+
+            const categorias = ['Limpeza', 'Alimentos', 'Higiene', 'Carnes', 'Bebê'];
+            let totalItensComprar = 0;
+
+            categorias.forEach(cat => {
+                const itensFaltando = produtos.filter(p => p.categoria === cat && p.estoque < p.minimo);
+                if(itensFaltando.length > 0) {
+                    const catDiv = document.createElement('div');
+                    catDiv.className = "py-3";
+                    catDiv.innerHTML = `<h4 class="font-bold text-indigo-700 mb-2 uppercase text-xs tracking-wider">${cat}</h4>`;
+                    
+                    const ul = document.createElement('ul');
+                    ul.className = "space-y-2";
+
+                    itensFaltando.forEach(item => {
+                        const qtdComprar = item.minimo - item.estoque;
+                        totalItensComprar += qtdComprar;
+                        const li = document.createElement('li');
+                        li.className = "flex justify-between items-center bg-slate-50 p-2.5 rounded-lg";
+                        li.innerHTML = `
+                            <div class="flex items-center gap-3">
+                                ${item.foto ? `<img src="${item.foto}" class="w-8 h-8 object-cover rounded-md">` : `<div class="w-8 h-8 bg-slate-200 rounded-md flex items-center justify-center text-xs"><i class="fa-solid fa-box"></i></div>`}
+                                <div>
+                                    <span class="font-medium text-slate-800">${item.nome}</span>
+                                    <span class="text-xs text-slate-500 block">Forma: ${item.forma} | Atual: ${item.estoque} (Mín: ${item.minimo})</span>
+                                </div>
+                            </div>
+                            <span class="bg-red-100 text-red-700 font-bold px-3 py-1 rounded-lg text-sm">Comprar: ${qtdComprar}</span>
+                        `;
+                        ul.appendChild(li);
+                    });
+                    catDiv.appendChild(ul);
+                    relatorioContainer.appendChild(catDiv);
+                }
+            });
+
+            if(totalItensComprar === 0) {
+                relatorioContainer.innerHTML = `<div class="text-center py-8 text-slate-500"><i class="fa-solid fa-circle-check text-emerald-500 text-3xl mb-2 block"></i>Tudo em ordem! Nenhum produto precisa ser comprado no momento.</div>`;
+            }
+
+            document.getElementById('modal-relatorio').classList.remove('hidden');
+        }
+
+        function fecharRelatorioCompras() {
+            document.getElementById('modal-relatorio').classList.add('hidden');
+        }
+
+        function abrirModalScanner() {
+            document.getElementById('modal-scanner').classList.remove('hidden');
+            Quagga.init({
+                inputStream : {
+                    name : "Live",
+                    type : "LiveStream",
+                    target: document.querySelector('#interactive'),
+                    constraints: { facingMode: "environment" }
+                },
+                decoder : {
+                    readers : ["ean_reader", "ean_8_reader", "code_128_reader"]
+                }
+            }, function(err) {
+                if (err) {
+                    document.getElementById('scanner-status').innerText = "Erro ao iniciar a câmera.";
+                    return;
+                }
+                Quagga.start();
+            });
+
+            Quagga.onDetected(function(result) {
+                const codigo = result.codeResult.code;
+                fecharModalScanner();
+
+                const produtoExistente = produtos.find(p => p.barcode === codigo);
+                if(produtoExistente) {
+                    mudarCategoria(produtoExistente.categoria);
+                    alert(`Produto encontrado: ${produtoExistente.nome}. Estoque incrementado!`);
+                    alterarEstoque(produtoExistente.id, 1);
+                } else {
+                    abrirModalProduto();
+                    document.getElementById('prod-barcode').value = codigo;
+                    alert(`Código ${codigo} não cadastrado. Preencha os dados e use o botão azul do Cosmos para buscar a foto.`);
+                }
+            });
+        }
+
+        function fecharModalScanner() {
+            try { Quagga.stop(); } catch(e) {}
+            document.getElementById('modal-scanner').classList.add('hidden');
+        }
+
+        renderizarTabela();
+    </script>
+</body>
+</html>
